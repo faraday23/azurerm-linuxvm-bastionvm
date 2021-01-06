@@ -40,9 +40,9 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   resource_group_name   = var.resource_group_name
   location              = var.location
   tags                  = var.tags
-  name                  = try(var.settings.virtual_machine_settings.name, {})
-  size                  = try(var.settings.virtual_machine_settings.size, {})
-  admin_username        = try(var.settings.virtual_machine_settings.admin_username, {})
+  name                  = try(var.settings.virtual_machine_settings.name, "")
+  size                  = try(var.settings.virtual_machine_settings.size, "")
+  admin_username        = try(var.settings.virtual_machine_settings.admin_username, "")
   network_interface_ids = [azurerm_network_interface.bastion.id, ]
 
   allow_extension_operations      = try(var.settings.virtual_machine_settings.allow_extension_operations, null)
