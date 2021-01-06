@@ -52,6 +52,11 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   provision_vm_agent              = try(var.settings.virtual_machine_settings.provision_vm_agent, true)
   zone                            = try(var.settings.virtual_machine_settings.zone, null)
   disable_password_authentication = try(var.settings.virtual_machine_settings.disable_password_authentication, true)
+
+  admin_ssh_key {
+    username   = "adminuser"
+    public_key = file("~/.ssh/id_rsa.pub")
+  }
  
   os_disk {
     caching                   = try(var.settings.virtual_machine_settings.os_disk.caching, null)
