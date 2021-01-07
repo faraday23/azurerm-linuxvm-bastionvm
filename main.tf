@@ -1,18 +1,29 @@
+resource "tls_private_key" "ssh_keys" {
+  algorithm = "RSA"
+  rsa_bits  = "2048"
+}
+
+resource "local_file" "pem_files" {
+  content         = tls_private_key.ssh_keys.private_key_pem
+  filename        = "${path.module}/${"bastion"}.pem"
+  file_permission = "0600"
+}
+
 resource "azurerm_public_ip" "bastion" {
   name                = "${var.names.product_name}-bastion-public"
   resource_group_name = var.resource_group_name
   location            = var.location
-  tags = var.tags
+  tags                = var.tags
 
   allocation_method = "Static"
   sku               = "Basic"
 }
 
 resource "azurerm_network_interface" "bastion" {
-  name                = "${var.names.product_name}-bastion"
+  name                = "${var.names.product_name}-bastion-nic"
   resource_group_name = var.resource_group_name
   location            = var.location
-  tags = var.tags
+  tags                = var.tags
 
   ip_configuration {
     name                          = "bastion"
@@ -30,7 +41,7 @@ resource "azurerm_network_security_rule" "bastion_in" {
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "22"
-  source_address_prefix       = "*"
+  source_address_prefix       = var.source_address
   destination_address_prefix  = azurerm_network_interface.bastion.private_ip_address
   resource_group_name         = var.resource_group_name
   network_security_group_name = var.security_group_name
@@ -40,7 +51,7 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   resource_group_name   = var.resource_group_name
   location              = var.location
   tags                  = var.tags
-  name                  = try(var.settings.virtual_machine_settings.name, "")
+  name                  = "${var.names.product_name}-bastion-vm"
   size                  = try(var.settings.virtual_machine_settings.size, "")
   admin_username        = try(var.settings.virtual_machine_settings.admin_username, "")
   network_interface_ids = [azurerm_network_interface.bastion.id, ]
@@ -54,10 +65,10 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   disable_password_authentication = try(var.settings.virtual_machine_settings.disable_password_authentication, true)
 
   admin_ssh_key {
-    username   = "adminuser"
-    public_key = file("~/.ssh/id_rsa.pub")
+    username   = try(var.settings.virtual_machine_settings.admin_ssh_key.username, null)
+    public_key = try(tls_private_key.ssh_keys.public_key_openssh, var.settings.virtual_machine_settings.admin_ssh_key.public_key)
   }
- 
+
   os_disk {
     caching                   = try(var.settings.virtual_machine_settings.os_disk.caching, null)
     disk_size_gb              = try(var.settings.virtual_machine_settings.os_disk.disk_size_gb, null)
@@ -73,3 +84,17 @@ resource "azurerm_linux_virtual_machine" "bastion" {
     version   = try(var.settings.virtual_machine_settings.source_image_reference.version, null)
   }
 }
+
+#resource "azurerm_bastion_host" "azurebastion" {
+#  name                = "${var.names.product_name}-bastion-host"
+#  location            = var.location
+#  resource_group_name = var.resource_group_name
+#  tags                = var.tags
+
+#  ip_configuration {
+#    name                 = "AzureBastionSubnet-iaas-public"
+#    subnet_id            = var.subnet_id
+#    public_ip_address_id = azurerm_public_ip.bastion.id
+#  }
+#}
+
