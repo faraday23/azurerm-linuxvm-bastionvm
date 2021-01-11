@@ -26,25 +26,136 @@ resource "azurerm_network_interface" "bastion" {
   tags                = var.tags
 
   ip_configuration {
-    name                          = "bastion"
+    name                          = "AzureBastionSubnet"
     subnet_id                     = var.subnet_id
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.bastion.id
   }
 }
 
-resource "azurerm_network_security_rule" "bastion_in" {
-  name                        = "bastion-in"
-  priority                    = 100
+resource "azurerm_network_security_rule" "bastion_in_allow" {
+  name                        = "bastion-in-allow"
+  priority                    = 120
   direction                   = "Inbound"
   access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
-  destination_port_range      = "22"
-  source_address_prefix       = var.source_address
-  destination_address_prefix  = azurerm_network_interface.bastion.private_ip_address
+  destination_port_range      = "443"
+  source_address_prefix       = "Internet"
+  destination_address_prefix  = "*"
   resource_group_name         = var.resource_group_name
   network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_network_security_rule" "bastion_control_in_allow" {
+  name                        = "bastion-control-in-allow"
+  priority                    = 130
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "GatewayManager"
+  destination_address_prefix  = "*"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_network_security_rule" "bastion_lb" {
+  name                        = "bastion-lb"
+  priority                    = 140
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "AzureLoadBalancer"
+  destination_address_prefix  = "*"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_network_security_rule" "bastion_host_communication" {
+  name                        = "bastion-host-communication"
+  priority                    = 150
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "8080, 5701"
+  source_address_prefix       = "VirtualNetwork"
+  destination_address_prefix  = "VirtualNetwork"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_network_security_rule" "bastion_ssh_rdp_outbound" {
+  name                        = "bastion-ssh-rdp-outbound"
+  priority                    = 100
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22, 3389"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "VirtualNetwork"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_network_security_rule" "bastion_azure_cloud_outbound" {
+  name                        = "bastion-azure-cloud-outbound"
+  priority                    = 110
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "AzureCloud"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_network_security_rule" "bastion_communication_outbound" {
+  name                        = "bastion-communication-outbound"
+  priority                    = 120
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "8080, 5701"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "AzureCloud"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_network_security_rule" "bastion_session_information" {
+  name                        = "bastion-session-information"
+  priority                    = 130
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "*"
+  source_port_range           = "80"
+  destination_port_range      = "*"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "Internet"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = var.security_group_name
+}
+
+resource "azurerm_bastion_host" "azurebastion" {
+  name                = "${var.names.product_name}-bastion-host"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+
+  ip_configuration {
+    name                 = "AzureBastionSubnet"
+    subnet_id            = var.subnet_id
+    public_ip_address_id = azurerm_public_ip.bastion.id
+  }
 }
 
 resource "azurerm_linux_virtual_machine" "bastion" {
@@ -85,16 +196,4 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   }
 }
 
-#resource "azurerm_bastion_host" "azurebastion" {
-#  name                = "${var.names.product_name}-bastion-host"
-#  location            = var.location
-#  resource_group_name = var.resource_group_name
-#  tags                = var.tags
-
-#  ip_configuration {
-#    name                 = "AzureBastionSubnet-iaas-public"
-#    subnet_id            = var.subnet_id
-#    public_ip_address_id = azurerm_public_ip.bastion.id
-#  }
-#}
 
