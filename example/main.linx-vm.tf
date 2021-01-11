@@ -36,20 +36,20 @@ module "subscription" {
 }
 
 module "rules" {
-  source = "github.com/openrba/python-azure-naming.git?ref=tf"
+  source = "../BASTION_HOST/rules"
 }
 
 module "metadata" {
-  source = "github.com/Azure-Terraform/terraform-azurerm-metadata?ref=v1.1.0"
+  source = "github.com/Azure-Terraform/terraform-azurerm-metadata.git"
 
   naming_rules = module.rules.yaml
 
   market              = "us"
   project             = "https://gitlab.ins.risk.regn.net/example/"
-  location            = "useast2"
+  location            = "eastus2"
   sre_team            = "iog-core-services"
   environment         = "sandbox"
-  product_name        = "mssql2"
+  product_name        = "mssql3"
   business_unit       = "iog"
   product_group       = "core"
   subscription_id     = module.subscription.output.subscription_id
@@ -66,7 +66,7 @@ module "resource_group" {
 }
 
 module "virtual_network" {
-  source = "github.com/Azure-Terraform/terraform-azurerm-virtual-network.git?ref=v2.3.1"
+  source = "github.com/Azure-Terraform/terraform-azurerm-virtual-network.git"
 
   naming_rules = module.rules.yaml
 
@@ -75,12 +75,14 @@ module "virtual_network" {
   names               = module.metadata.names
   tags                = module.metadata.tags
 
-  address_space = ["10.1.0.0/22"]
+  address_space = ["10.1.0.0/16"]  #IP prefix for available addresses in vnet address space
 
   subnets = {
-    "iaas-outbound" = { cidrs = ["10.1.0.0/24"]
-      allow_vnet_inbound  = true
-      allow_vnet_outbound = true
+    "AzureBastionSubnet" = { cidrs = ["10.1.1.0/27"]  #Bastion subnet IP prefix MUST be within vnet IP prefix address space
+    allow_vnet_inbound  = true
+    allow_vnet_outbound = true
+    allow_lb_inbound = true
+    allow_internet_outbound = true
     }
   }
 }
@@ -95,8 +97,8 @@ module "bastion" {
   tags                = module.metadata.tags
 
   source_address      = "${chomp(data.http.my_ip.body)}/32"
-  subnet_id           = module.virtual_network.subnet["iaas-outbound"].id
-  security_group_name = module.virtual_network.subnet_nsg_names["iaas-outbound"]
+  subnet_id           = module.virtual_network.subnet["AzureBastionSubnet"].id
+  security_group_name = module.virtual_network.subnet_nsg_names["AzureBastionSubnet"]
 
   # Configuration to deploy a bastion host linux virtual machine
   settings = {
